@@ -3353,14 +3353,10 @@
        (motor próprio em Canvas2D + WebAudio; nada de recursos externos)
        ========================================================================= -->
   <style>
-    #portfolio{position:fixed;inset:0;z-index:60;display:none}
-    #portfolio.open{display:block}
-    #portfolio .pf-backdrop{position:absolute;inset:0;background:rgba(1,0,3,.72);backdrop-filter:blur(10px)}
-    #portfolio .pf-panel{position:absolute;inset:3vh 3vw;overflow:auto;border-radius:var(--radius-lg);
-      border:1px solid var(--glass-line);background:linear-gradient(160deg,rgba(12,4,16,.94),rgba(4,1,7,.96));
-      padding:clamp(20px,3.4vw,52px);box-shadow:0 40px 140px rgba(0,0,0,.6)}
-    #portfolio .pf-close{position:sticky;top:0;margin-left:auto;display:block;width:40px;height:40px;border-radius:50%;
-      border:1px solid var(--glass-line);background:var(--glass);color:var(--white);font-size:20px;cursor:pointer;z-index:2}
+    /* Portfólio integrado DENTRO do códex existente — a interface NÃO muda */
+    #portfolio{display:block;margin-top:30px;border-top:1px solid var(--glass-line);padding-top:10px}
+    #portfolio .pf-backdrop,#portfolio .pf-close,#pf-launch{display:none!important}
+    #portfolio .pf-panel{position:static;inset:auto;border:0;background:transparent;padding:0;box-shadow:none}
     #portfolio .pf-kicker{font:600 11px/1.4 ui-monospace,monospace;letter-spacing:.36em;text-transform:uppercase;color:var(--red-hot);margin:0 0 10px}
     #portfolio h1{margin:0 0 6px;font-size:clamp(30px,5.6vw,68px);letter-spacing:-.03em}
     #portfolio h1 .o{color:transparent;-webkit-text-stroke:1px var(--red-hot)}
@@ -3439,20 +3435,13 @@
     var dlg = document.getElementById("portfolio");
     if (!dlg) return;
 
-    /* ---------- abrir / fechar ---------- */
-    var launch = document.createElement("button");
-    launch.id = "pf-launch";
-    launch.type = "button";
-    launch.textContent = "Portfólio";
-    document.body.appendChild(launch);
-
-    function open() { dlg.classList.add("open"); }
-    function close() { dlg.classList.remove("open"); }
-    launch.addEventListener("click", open);
-    document.getElementById("pfClose").addEventListener("click", close);
-    var bd = dlg.querySelector(".pf-backdrop");
-    bd.addEventListener("click", close);
-    document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+    /* ---------- integração no códice existente (interface intacta) ---------- */
+    var codexPanel = document.querySelector("#codex .codex-panel");
+    if (codexPanel) codexPanel.appendChild(dlg);
+    var bdEl = dlg.querySelector(".pf-backdrop");
+    if (bdEl && bdEl.parentNode) bdEl.parentNode.removeChild(bdEl);
+    var clEl = document.getElementById("pfClose");
+    if (clEl && clEl.parentNode) clEl.parentNode.removeChild(clEl);
 
     /* ---------- obras: gerador procedural (Canvas2D) ---------- */
     var works = [
@@ -3586,7 +3575,7 @@
     vizSize(); addEventListener("resize", vizSize, { passive: true });
     (function vizLoop() {
       requestAnimationFrame(vizLoop);
-      if (!dlg.classList.contains("open")) return;
+      if (!dlg.getClientRects().length) return;
       var w = viz.width, h = viz.height, dpr = Math.min(devicePixelRatio || 1, 2);
       if (viz.clientWidth * dpr !== w) vizSize();
       phase += .02;
@@ -3648,7 +3637,7 @@
     btnVid.addEventListener("click", function () { vplaying = !vplaying; btnVid.textContent = vplaying ? "Pausar" : "Reproduzir"; btnVid.setAttribute("aria-pressed", vplaying ? "false" : "true"); });
     (function vloop() {
       requestAnimationFrame(vloop);
-      if (!dlg.classList.contains("open")) return;
+      if (!dlg.getClientRects().length) return;
       var d = Math.min(devicePixelRatio || 1, 2);
       if (vid.clientWidth * d !== vid.width) vsize();
       var w = vid.width, h = vid.height;
@@ -3800,8 +3789,7 @@
     }
     btnLang.addEventListener("click", function () { pfLang = pfLang === "pt" ? "es" : "pt"; pfTranslate(); });
 
-    if (location.hash === "#portfolio") open();
-    addEventListener("hashchange", function () { if (location.hash === "#portfolio") open(); });
+    // O portfólio já está dentro do códice: nada de abrir/fechar.
   })();
   </script>
 </body>
