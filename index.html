@@ -3460,7 +3460,12 @@
       ["Chave de Ouro", "bars"], ["Diamante 2.417", "shard"], ["Vazio Neon", "grid"],
       ["432 Hz", "wave"], ["Códice", "glyph"], ["Lore Unificado", "nebula"],
       ["Omega", "orbit"], ["Traição", "shard"], ["Redenção", "wave"],
-      ["Planeta Vivo", "orbit"], ["Agulha Ancestral", "bars"], ["Espelho de Omega", "rings"]
+      ["Planeta Vivo", "orbit"], ["Agulha Ancestral", "bars"], ["Espelho de Omega", "rings"],
+      ["Hélice de Judas", "spiral"], ["Cidade Subterrânea", "city"], ["Túnel Estelar", "tunnel"],
+      ["Cristal Primordial", "crystal"], ["Frequência Dupla", "lissa"], ["Olho do Sistema", "orbit"],
+      ["Coroa", "rings"], ["Coração", "wave"], ["Máscara", "shard"], ["Pendrive", "bars"],
+      ["Amapola", "nebula"], ["Sangue", "wave"], ["Tomada de Consciência", "tunnel"],
+      ["Eco de Outra Era", "spiral"], ["Nó 05 · Omega", "city"]
     ];
     var pal = ["#ff003c", "#ff285f", "#65f7ff", "#8b5cff", "#ffd45c"];
 
@@ -3503,6 +3508,29 @@
         x.strokeStyle = hexA("#ffd45c", .8); x.lineWidth = 2 * dpr;
         for (var gl = 0; gl < 7; gl++) { var gyy = (12 + gl * 26) * dpr; x.beginPath();
           for (var q = 0; q < 7; q++) { var qx = (12 + q * 42) * dpr; var on = R() > .5; if (on) { x.moveTo(qx, gyy); x.lineTo(qx + 26 * dpr, gyy); } } x.stroke(); }
+      } else if (mode === "spiral") {
+        x.lineWidth = 1.4 * dpr;
+        for (var sp = 0; sp < 5; sp++) { x.beginPath(); x.strokeStyle = hexA(pal[sp % 5], .8);
+          for (var aa = 0; aa < 64; aa++) { var rs = (aa / 64) * w * .44, th = aa * .32 + sp * 1.25 + R() * .08;
+            var sx2 = w / 2 + Math.cos(th) * rs, sy2 = h / 2 + Math.sin(th) * rs * .62; aa ? x.lineTo(sx2, sy2) : x.moveTo(sx2, sy2); } x.stroke(); }
+      } else if (mode === "city") {
+        for (var cb = 0; cb < 42; cb++) { var bw2 = (6 + R() * 22) * dpr, bh2 = (10 + R() * 92) * dpr, bx2 = R() * w;
+          x.fillStyle = "#0f0018"; x.fillRect(bx2, h - bh2, bw2, bh2);
+          x.fillStyle = hexA(pal[Math.floor(R() * 5)], .9); for (var wn = 0; wn < 8; wn++) x.fillRect(bx2 + R() * bw2, h - bh2 + R() * bh2, 1.6 * dpr, 1.6 * dpr); }
+        x.strokeStyle = hexA("#65f7ff", .5); for (var gl2 = 0; gl2 < 6; gl2++) { var gy2 = h - (gl2 * gl2 * 6) * dpr; x.beginPath(); x.moveTo(0, gy2); x.lineTo(w, gy2); x.stroke(); }
+      } else if (mode === "tunnel") {
+        for (var tn = 0; tn < 26; tn++) { var fq = (tn / 26) * (tn / 26); x.strokeStyle = hexA(pal[tn % 5], .8); x.lineWidth = (1 + fq * 4) * dpr;
+          x.beginPath(); x.arc(w / 2, h / 2, 6 + fq * w * .55, 0, 7); x.stroke(); }
+        for (var lk = 0; lk < 44; lk++) { var an = R() * 6.28, r1 = 10 + R() * w * .5; x.strokeStyle = hexA("#ffffff", .25);
+          x.beginPath(); x.moveTo(w / 2 + Math.cos(an) * r1, h / 2 + Math.sin(an) * r1); x.lineTo(w / 2 + Math.cos(an) * (r1 + 30 * dpr), h / 2 + Math.sin(an) * (r1 + 30 * dpr)); x.stroke(); }
+      } else if (mode === "crystal") {
+        for (var cr = 0; cr < 18; cr++) { var cxx = R() * w, cyy = R() * h, ss = (10 + R() * 40) * dpr;
+          x.beginPath(); x.moveTo(cxx, cyy - ss); x.lineTo(cxx + ss * .6, cyy); x.lineTo(cxx, cyy + ss); x.lineTo(cxx - ss * .6, cyy); x.closePath();
+          x.fillStyle = hexA(pal[Math.floor(R() * 5)], .3); x.fill(); x.strokeStyle = hexA("#ffffff", .55); x.lineWidth = dpr; x.stroke(); }
+      } else if (mode === "lissa") {
+        x.lineWidth = 1.6 * dpr;
+        for (var ls = 0; ls < 24; ls++) { x.beginPath(); x.strokeStyle = hexA(pal[ls % 5], .75);
+          for (var t2 = 0; t2 <= 6.283; t2 += .05) { var lx2 = w / 2 + Math.sin((3 + ls % 3) * t2 + ls) * w * .38, ly2 = h / 2 + Math.sin((4 + ls % 2) * t2) * h * .38; t2 ? x.lineTo(lx2, ly2) : x.moveTo(lx2, ly2); } x.stroke(); }
       } else {
         var ng = x.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w * .7);
         ng.addColorStop(0, "rgba(255,40,95,.5)"); ng.addColorStop(.5, "rgba(139,92,255,.22)"); ng.addColorStop(1, "transparent");
@@ -3569,6 +3597,90 @@
       btn.setAttribute("aria-pressed", on ? "true" : "false");
       btn.textContent = on ? "Silenciar drone" : "Ativar drone 432 Hz";
     });
+
+    /* ---------- secção: vídeo procedural ---------- */
+    var panel = dlg.querySelector(".pf-panel");
+    var h2v = document.createElement("h2"); h2v.textContent = "Vídeo procedural";
+    var pvWrap = document.createElement("div"); pvWrap.className = "pf-viz";
+    pvWrap.innerHTML = '<canvas id="pfVideo" aria-label="Vídeo procedural"></canvas>';
+    var rowv = document.createElement("div"); rowv.className = "pf-row";
+    var btnVid = document.createElement("button"); btnVid.className = "pf-btn"; btnVid.type = "button"; btnVid.textContent = "Pausar";
+    var noteVid = document.createElement("span"); noteVid.className = "pf-note"; noteVid.textContent = "Sequência gerada em código (sem ficheiros de vídeo).";
+    rowv.appendChild(btnVid); rowv.appendChild(noteVid);
+    panel.appendChild(h2v); panel.appendChild(pvWrap); panel.appendChild(rowv);
+
+    var vid = document.getElementById("pfVideo");
+    var vc = vid.getContext("2d");
+    var vplaying = true, vt = 0, vstars = [];
+    function vsize() {
+      var d = Math.min(devicePixelRatio || 1, 2);
+      vid.width = Math.round(vid.clientWidth * d); vid.height = Math.round(150 * d);
+      vstars = []; for (var i = 0; i < 110; i++) vstars.push({ x: Math.random(), y: Math.random(), z: Math.random(), s: Math.random() * 1.6 + .3 });
+    }
+    vsize(); addEventListener("resize", vsize, { passive: true });
+    btnVid.addEventListener("click", function () { vplaying = !vplaying; btnVid.textContent = vplaying ? "Pausar" : "Reproduzir"; btnVid.setAttribute("aria-pressed", vplaying ? "false" : "true"); });
+    (function vloop() {
+      requestAnimationFrame(vloop);
+      if (!dlg.classList.contains("open")) return;
+      var d = Math.min(devicePixelRatio || 1, 2);
+      if (vid.clientWidth * d !== vid.width) vsize();
+      var w = vid.width, h = vid.height;
+      if (vplaying) vt += .016;
+      vc.fillStyle = "rgba(3,0,7,.45)"; vc.fillRect(0, 0, w, h);
+      for (var i = 0; i < vstars.length; i++) { var st = vstars[i];
+        st.y += (0.0006 + st.z * 0.0022) * (warp = 1 + Math.max(0, Math.sin(vt * .5)) * 1.6);
+        if (st.y > 1) st.y = 0;
+        vc.globalAlpha = .25 + st.z * .75; vc.fillStyle = st.z > .8 ? "#65f7ff" : (st.z > .5 ? "#ff285f" : "#ffffff");
+        var sx = st.x * w, sy = st.y * h; vc.fillRect(sx, sy, st.s * d, st.s * d * (1 + st.z * 2));
+      }
+      vc.globalAlpha = 1;
+      var phase = Math.max(0, Math.sin(vt * .35));
+      if (phase < .55) {
+        var rp = Math.min(w, h) * (.07 + phase * .5);
+        var pgrad = vc.createRadialGradient(w / 2 - rp * .3, h / 2 - rp * .3, rp * .1, w / 2, h / 2, rp);
+        pgrad.addColorStop(0, "#ff5470"); pgrad.addColorStop(.55, "#8a0022"); pgrad.addColorStop(1, "#170009");
+        vc.beginPath(); vc.arc(w / 2, h / 2, rp, 0, 7); vc.fillStyle = pgrad; vc.fill();
+        vc.strokeStyle = "rgba(101,247,255,.6)"; vc.lineWidth = 1.6 * d; vc.stroke();
+      }
+      vc.strokeStyle = "rgba(255,212,92,.5)"; vc.beginPath();
+      for (var px = 0; px <= w; px += 4) { var y2 = h / 2 + Math.sin(px / w * 6.283 * 3 + vt * 2) * h * .16; px ? vc.lineTo(px, y2) : vc.moveTo(px, y2); } vc.stroke();
+      vc.fillStyle = "rgba(255,255,255,.55)"; vc.font = (10 * d) + "px ui-monospace,monospace";
+      vc.fillText("432 HZ · " + String(Math.floor(vt * 24) % 1000).padStart(3, "0"), 10 * d, 16 * d);
+    })();
+
+    /* ---------- alternador PT/ES do painel ---------- */
+    var PFDICT = [
+      ["Obras", "Obras"],
+      ["Clique num painel para recompor a cena.", "Toca un panel para recomponer la escena."],
+      ["Crônica do lore — as seis eras", "Crónica del lore — las seis eras"],
+      ["As quatro gemas", "Las cuatro gemas"],
+      ["432 Hz — frequência-raiz", "432 Hz — frecuencia raíz"],
+      ["Ativar drone 432 Hz", "Activar drone 432 Hz"],
+      ["Silenciar drone", "Silenciar drone"],
+      ["Onda gerada por WebAudio (sem ficheiros de áudio).", "Onda generada por WebAudio (sin ficheros de audio)."],
+      ["Vídeo procedural", "Vídeo procedural"],
+      ["Pausar", "Pausar"],
+      ["Reproduzir", "Reproducir"],
+      ["Sequência gerada em código (sem ficheiros de vídeo).", "Secuencia generada en código (sin ficheros de vídeo)."]
+    ];
+    var pfLang = "pt";
+    var btnLang = document.createElement("button");
+    btnLang.className = "pf-btn"; btnLang.type = "button"; btnLang.textContent = "PT / ES";
+    btnLang.style.position = "absolute"; btnLang.style.top = "18px"; btnLang.style.right = "72px";
+    panel.appendChild(btnLang);
+    function pfTranslate() {
+      var from = pfLang === "pt" ? 1 : 0, to = pfLang === "pt" ? 0 : 1;
+      var walker = document.createTreeWalker(panel, NodeFilter.SHOW_TEXT, null);
+      var node;
+      while ((node = walker.nextNode())) {
+        var txt = node.nodeValue.trim();
+        for (var i = 0; i < PFDICT.length; i++) {
+          if (txt === PFDICT[i][from]) { node.nodeValue = node.nodeValue.replace(PFDICT[i][from], PFDICT[i][to]); break; }
+        }
+      }
+      btnLang.textContent = pfLang === "pt" ? "PT / ES" : "ES / PT";
+    }
+    btnLang.addEventListener("click", function () { pfLang = pfLang === "pt" ? "es" : "pt"; pfTranslate(); });
 
     if (location.hash === "#portfolio") open();
     addEventListener("hashchange", function () { if (location.hash === "#portfolio") open(); });
