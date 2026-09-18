@@ -304,10 +304,18 @@ function audioPanel(radio){
   var wrap=document.createElement("div");
   var cv=document.createElement("canvas"); cv.style.cssText="width:100%;height:150px;border:1px solid var(--line);border-radius:12px;background:#020208;display:block";
   wrap.appendChild(cv);
+  if(radio){
+    var au=document.createElement("audio"); au.controls=true; au.preload="none";
+    au.src="assets/audio/judas-demo-pura.mp3"; au.style.cssText="width:100%;margin-top:10px";
+    var al=document.createElement("div"); al.className="row";
+    var an=document.createElement("span"); an.style.cssText="font-family:"+MONO+";font-size:10px;color:#6c6679";
+    an.textContent="Judas — demo pura (áudio local)";
+    al.appendChild(au); al.appendChild(an); wrap.appendChild(al);
+  }
   var row=document.createElement("div"); row.className="row";
   var b=document.createElement("button"); b.className="btn"; b.textContent="ATIVAR 432 HZ";
   var note=document.createElement("span"); note.style.cssText="font-family:"+MONO+";font-size:10px;color:#6c6679";
-  note.textContent = radio ? "Sequência automática (mock)." : "Onda sintetizada em tempo real (WebAudio).";
+  note.textContent = radio ? "Toca a tua demo; o drone 432 Hz pode somar por cima." : "Onda sintetizada em tempo real (WebAudio).";
   row.appendChild(b); row.appendChild(note); wrap.appendChild(row);
   var ctx2=cv.getContext("2d"), W=0,H=0,d=Math.min(devicePixelRatio||1,2), ph=0, playing=false;
   function rs(){ W=cv.width=Math.round(cv.clientWidth*d); H=cv.height=Math.round(150*d); }

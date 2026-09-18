@@ -95,3 +95,4 @@ Un **escritorio ficticio** que se comporta como un sistema:
 |---|---|---|
 | 2026-09-18 | Definido el OS lírico-neón + plan por fases | Este documento |
 | 2026-09-18 | Construido `os.html` v1 (boot, escritorio, dock, 3 apps, terminal CAOS) | ver git |
+| 2026-09-18 | FASE 1 completada: EMPRESA/manifiesto.md + EMPRESA/catalogo.md; audio real integrado en el OS (assets/audio/judas-demo-pura.mp3 -> app RADIO 432) | ver git |
