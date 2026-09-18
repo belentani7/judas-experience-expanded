@@ -3625,6 +3625,15 @@
     rowv.appendChild(btnVid); rowv.appendChild(noteVid);
     panel.appendChild(h2v); panel.appendChild(pvWrap); panel.appendChild(rowv);
 
+    /* ligação discreta para o OS lírico-neón (nova página; a interface daqui NÃO muda) */
+    var osRow = document.createElement("div"); osRow.className = "pf-row";
+    var osLink = document.createElement("a"); osLink.className = "pf-btn"; osLink.href = "os.html";
+    osLink.textContent = "Abrir BELENTANI OS →";
+    var osNote = document.createElement("span"); osNote.className = "pf-note";
+    osNote.textContent = "Sistema operativo lírico-neón do caos (abre numa página nova).";
+    osRow.appendChild(osLink); osRow.appendChild(osNote);
+    panel.appendChild(osRow);
+
     var vid = document.getElementById("pfVideo");
     var vc = vid.getContext("2d");
     var vplaying = true, vt = 0, vstars = [];
