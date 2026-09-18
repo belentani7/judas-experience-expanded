@@ -126,6 +126,7 @@
   <button class="app" data-app="radio"><i>≈</i>RADIO 432</button>
   <button class="app" data-app="sessoes"><i>≡</i>SESSÕES</button>
   <button class="app" data-app="experiencia"><i>✵</i>EXPERIÊNCIA</button>
+  <button class="app" data-app="newsletter"><i>✉</i>NEWSLETTER</button>
   <button class="app" data-app="prensa"><i>✦</i>PRENSA</button>
   <button class="app" data-app="booking"><i>✉</i>BOOKING</button>
   <button class="app" data-app="caos"><i>&gt;_</i>CAOS</button>
@@ -265,6 +266,7 @@ var APPS={
   radio:{title:"RADIO 432 · ao vivo", w:520,h:320, x:260,y:120, build:function(){ return audioPanel(true); }},
   sessoes:{title:"SESSÕES · multitrack", w:540,h:470, x:200,y:120, build:function(){ return sessionsPanel(); }},
   experiencia:{title:"EXPERIÊNCIA · viagem 168 s", w:480,h:220, x:250,y:160, build:function(){ return expPanel(); }},
+  newsletter:{title:"NEWSLETTER · lista própria", w:440,h:380, x:290,y:130, build:function(){ return newsPanel(); }},
   video:{title:"VÍDEO · procedural", w:560,h:360, x:120,y:200, build:function(){ return videoPanel(); }},
   prensa:{title:"PRENSA · press-kit", w:520,h:420, x:180,y:90, build:function(){
     var d=document.createElement("div");
@@ -272,9 +274,8 @@ var APPS={
       +'<h3>Bio longa</h3><p>BELENTANI constrói sistemas: música dark pop, motores gráficos próprios e um lore contínuo em seis eras. Obra onde o código é a tela.</p>'
       +'<h3>Ficha técnica</h3><p>Formato: solo + convidados · Duração: 40–60 min · Som: 432 Hz · Rider: 1 DI, PA estéreo, luz vermelha/ciano.</p>';
     var row=document.createElement("div"); row.className="row";
-    var a=document.createElement("a"); a.className="btn"; a.textContent="Descarregar EPK (txt)";
-    a.href="data:text/plain;charset=utf-8,"+encodeURIComponent("BELENTANI — EPK\n\nBio: artista visual e sonoro...\nContacto: booking@belentani.local");
-    a.setAttribute("download","BELENTANI-EPK.txt");
+    var a=document.createElement("a"); a.className="btn"; a.textContent="Descarregar EPK (DOCX)";
+    a.href="EMPRESA/EPK-BELENTANI.docx"; a.setAttribute("download","BELENTANI-EPK.docx");
     row.appendChild(a); d.appendChild(row); return d;
   }},
   booking:{title:"BOOKING · contacto", w:460,h:420, x:300,y:110, build:function(){
@@ -399,6 +400,32 @@ function expPanel(){
   var a=document.createElement("a"); a.className="btn"; a.href="index.html"; a.textContent="Abrir a obra (3D) →";
   var n=document.createElement("span"); n.style.cssText="font-family:"+MONO+";font-size:10px;color:#6c6679"; n.textContent="Precisa WebGL.";
   row.appendChild(a); row.appendChild(n); d.appendChild(row); return d;
+}
+function newsPanel(){
+  var d=document.createElement("div");
+  d.innerHTML='<h2>Newsletter — lista própria</h2><p>Registo local (sem servidor): os contactos ficam guardados neste dispositivo.</p>';
+  var f=document.createElement("form"); f.noValidate=true;
+  var ln=document.createElement("label"); ln.textContent="Nome";
+  var inn=document.createElement("input"); inn.id="nl-nome"; inn.type="text";
+  var le=document.createElement("label"); le.textContent="E-mail";
+  var ine=document.createElement("input"); ine.id="nl-email"; ine.type="email";
+  var b=document.createElement("button"); b.className="btn"; b.type="submit"; b.textContent="SUBSCREVER";
+  var ok=document.createElement("p"); ok.setAttribute("role","status");
+  var cnt=document.createElement("p"); cnt.style.cssText="font-family:"+MONO+";font-size:10px;color:#6c6679";
+  var KEY="belentani_news";
+  function load(){ try{ return JSON.parse(localStorage.getItem(KEY)||"[]"); }catch(e){ return []; } }
+  function show(){ cnt.textContent="Subscritores neste dispositivo: "+load().length; }
+  f.appendChild(ln); f.appendChild(inn); f.appendChild(le); f.appendChild(ine); f.appendChild(b); f.appendChild(ok); f.appendChild(cnt);
+  f.addEventListener("submit",function(e){
+    e.preventDefault();
+    var n=inn.value.trim(), m=ine.value.trim();
+    if(n.length<2||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m)){ ok.style.color="#ff285f"; ok.textContent="Preenche nome e e-mail válido."; return; }
+    var list=load(); list.push({n:n,m:m,t:Date.now()});
+    try{ localStorage.setItem(KEY,JSON.stringify(list)); }catch(e2){}
+    ok.style.color="#54ffa8"; ok.textContent="Registado. Bem-vindo ao caos."; f.reset(); show();
+  });
+  show();
+  d.appendChild(f); return d;
 }
 function termPanel(){
   var d=document.createElement("div"); d.className="term";
