@@ -3465,7 +3465,12 @@
       ["Cristal Primordial", "crystal"], ["Frequência Dupla", "lissa"], ["Olho do Sistema", "orbit"],
       ["Coroa", "rings"], ["Coração", "wave"], ["Máscara", "shard"], ["Pendrive", "bars"],
       ["Amapola", "nebula"], ["Sangue", "wave"], ["Tomada de Consciência", "tunnel"],
-      ["Eco de Outra Era", "spiral"], ["Nó 05 · Omega", "city"]
+      ["Eco de Outra Era", "spiral"], ["Nó 05 · Omega", "city"],
+      ["Mandala", "mandala"], ["Circuito", "circuit"], ["Relógio de Areia", "bars"],
+      ["Biblioteca", "grid"], ["Serpente", "spiral"], ["Estrela Morta", "shard"],
+      ["Aurora", "nebula"], ["Bússola", "rings"], ["Ampulheta", "tunnel"],
+      ["Fóssil", "crystal"], ["Espelho Negro", "lissa"], ["Voz de Judas", "wave"],
+      ["Porta Final", "city"], ["Gênesis", "orbit"]
     ];
     var pal = ["#ff003c", "#ff285f", "#65f7ff", "#8b5cff", "#ffd45c"];
 
@@ -3531,6 +3536,28 @@
         x.lineWidth = 1.6 * dpr;
         for (var ls = 0; ls < 24; ls++) { x.beginPath(); x.strokeStyle = hexA(pal[ls % 5], .75);
           for (var t2 = 0; t2 <= 6.283; t2 += .05) { var lx2 = w / 2 + Math.sin((3 + ls % 3) * t2 + ls) * w * .38, ly2 = h / 2 + Math.sin((4 + ls % 2) * t2) * h * .38; t2 ? x.lineTo(lx2, ly2) : x.moveTo(lx2, ly2); } x.stroke(); }
+      } else if (mode === "mandala") {
+        for (var md = 0; md < 9; md++) {
+          var petals = 6 + md * 2, rad = (16 + md * 14) * dpr;
+          for (var pt = 0; pt < petals; pt++) {
+            var th2 = (pt / petals) * 6.283 + md * .18;
+            x.beginPath();
+            x.ellipse(w / 2 + Math.cos(th2) * rad, h / 2 + Math.sin(th2) * rad * .62,
+              (5 + md * 2) * dpr, (14 + md * 3) * dpr, th2, 0, 7);
+            x.strokeStyle = hexA(pal[md % 5], .55); x.lineWidth = dpr; x.stroke();
+          }
+        }
+        x.beginPath(); x.arc(w / 2, h / 2, 8 * dpr, 0, 7); x.fillStyle = "#ffd45c"; x.fill();
+      } else if (mode === "circuit") {
+        for (var cq = 0; cq < 26; cq++) {
+          var x1 = Math.floor(R() * w), y1 = Math.floor(R() * h), horiz = R() > .5, len = (20 + R() * 90) * dpr;
+          x.strokeStyle = hexA(pal[Math.floor(R() * 5)], .6); x.lineWidth = 1.4 * dpr;
+          x.beginPath(); x.moveTo(x1, y1);
+          if (horiz) { x.lineTo(x1 + len, y1); x.lineTo(x1 + len, y1 + (R() > .5 ? len : -len)); }
+          else { x.lineTo(x1, y1 + len); x.lineTo(x1 + (R() > .5 ? len : -len), y1 + len); }
+          x.stroke();
+          x.beginPath(); x.arc(x1, y1, 2.2 * dpr, 0, 7); x.fillStyle = "#65f7ff"; x.fill();
+        }
       } else {
         var ng = x.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w * .7);
         ng.addColorStop(0, "rgba(255,40,95,.5)"); ng.addColorStop(.5, "rgba(139,92,255,.22)"); ng.addColorStop(1, "transparent");
@@ -3628,7 +3655,8 @@
       if (vplaying) vt += .016;
       vc.fillStyle = "rgba(3,0,7,.45)"; vc.fillRect(0, 0, w, h);
       for (var i = 0; i < vstars.length; i++) { var st = vstars[i];
-        st.y += (0.0006 + st.z * 0.0022) * (warp = 1 + Math.max(0, Math.sin(vt * .5)) * 1.6);
+        var warp = 1 + Math.max(0, Math.sin(vt * .5)) * 1.6;
+        st.y += (0.0006 + st.z * 0.0022) * warp;
         if (st.y > 1) st.y = 0;
         vc.globalAlpha = .25 + st.z * .75; vc.fillStyle = st.z > .8 ? "#65f7ff" : (st.z > .5 ? "#ff285f" : "#ffffff");
         var sx = st.x * w, sy = st.y * h; vc.fillRect(sx, sy, st.s * d, st.s * d * (1 + st.z * 2));
@@ -3648,6 +3676,63 @@
       vc.fillText("432 HZ · " + String(Math.floor(vt * 24) % 1000).padStart(3, "0"), 10 * d, 16 * d);
     })();
 
+    /* ---------- secção: áudio procedural (sequenciador generativo) ---------- */
+    var h2a = document.createElement("h2"); h2a.textContent = "Áudio procedural";
+    var aNote = document.createElement("p"); aNote.className = "pf-note";
+    aNote.textContent = "Melodia generativa afinada a 432 Hz, sintetizada em tempo real (sem ficheiros de áudio).";
+    var arow = document.createElement("div"); arow.className = "pf-row";
+    var btnSeq = document.createElement("button"); btnSeq.className = "pf-btn"; btnSeq.type = "button";
+    btnSeq.textContent = "Tocar sequência"; btnSeq.setAttribute("aria-pressed", "false");
+    var btnScale = document.createElement("button"); btnScale.className = "pf-btn"; btnScale.type = "button";
+    var aNote2 = document.createElement("span"); aNote2.className = "pf-note"; aNote2.textContent = "Escalas em temperamento de 432 Hz.";
+    arow.appendChild(btnSeq); arow.appendChild(btnScale); arow.appendChild(aNote2);
+    panel.appendChild(h2a); panel.appendChild(aNote); panel.appendChild(arow);
+
+    var SCALES_ES = { "Menor": "Menor", "Dórico": "Dórico", "Pent. menor": "Pent. menor", "Pent. maior": "Pent. mayor" };
+    var SEQ = {
+      on: false, timer: null, step: 0, actx: null, master: null, root: 216, idx: 0,
+      scales: [[0, 2, 3, 5, 7, 8, 10], [0, 2, 3, 5, 7, 9, 10], [0, 3, 5, 7, 10], [0, 2, 4, 7, 9]],
+      names: ["Menor", "Dórico", "Pent. menor", "Pent. maior"]
+    };
+    function seqNote(semi) {
+      var o = SEQ.actx.createOscillator(), g = SEQ.actx.createGain();
+      o.type = "triangle"; o.frequency.value = SEQ.root * Math.pow(2, semi / 12);
+      var t = SEQ.actx.currentTime;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.42, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.95);
+      o.connect(g); g.connect(SEQ.master); o.start(t); o.stop(t + 1.0);
+    }
+    function seqTick() {
+      var sc = SEQ.scales[SEQ.idx];
+      if (Math.random() < 0.82) seqNote(sc[Math.floor(Math.random() * sc.length)] + (Math.random() < 0.18 ? 12 : 0));
+      if (SEQ.step % 4 === 0 && Math.random() < 0.7) seqNote(sc[0] - 12);
+      if (SEQ.step % 8 === 0 && Math.random() < 0.5) seqNote(sc[sc.length - 1] + 12);
+      SEQ.step++;
+    }
+    function seqLabel() {
+      var es = pfLang === "es";
+      btnScale.textContent = "Escala: " + (es ? (SCALES_ES[SEQ.names[SEQ.idx]] || SEQ.names[SEQ.idx]) : SEQ.names[SEQ.idx]);
+      btnSeq.textContent = SEQ.on ? (es ? "Detener secuencia" : "Parar sequência") : (es ? "Reproducir secuencia" : "Tocar sequência");
+      btnSeq.setAttribute("aria-pressed", SEQ.on ? "true" : "false");
+    }
+    btnSeq.addEventListener("click", function () {
+      var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      if (!SEQ.actx) {
+        SEQ.actx = new AC();
+        SEQ.master = SEQ.actx.createGain(); SEQ.master.gain.value = 0.16;
+        SEQ.master.connect(SEQ.actx.destination);
+      }
+      if (SEQ.actx.state === "suspended") SEQ.actx.resume();
+      SEQ.on = !SEQ.on;
+      if (SEQ.on) { seqTick(); SEQ.timer = setInterval(seqTick, 320); }
+      else if (SEQ.timer) { clearInterval(SEQ.timer); SEQ.timer = null; }
+      seqLabel();
+    });
+    btnScale.addEventListener("click", function () { SEQ.idx = (SEQ.idx + 1) % SEQ.scales.length; seqLabel(); });
+    if (typeof pfLang === "undefined") var pfLang = "pt";
+    seqLabel();
+
     /* ---------- alternador PT/ES do painel ---------- */
     var PFDICT = [
       ["Obras", "Obras"],
@@ -3661,13 +3746,46 @@
       ["Vídeo procedural", "Vídeo procedural"],
       ["Pausar", "Pausar"],
       ["Reproduzir", "Reproducir"],
-      ["Sequência gerada em código (sem ficheiros de vídeo).", "Secuencia generada en código (sin ficheros de vídeo)."]
+      ["Sequência gerada em código (sem ficheiros de vídeo).", "Secuencia generada en código (sin ficheros de vídeo)."],
+      ["Áudio procedural", "Audio procedural"],
+      ["Melodia generativa afinada a 432 Hz, sintetizada em tempo real (sem ficheiros de áudio).", "Melodía generativa afinada a 432 Hz, sintetizada en tiempo real (sin ficheros de audio)."],
+      ["Escalas em temperamento de 432 Hz.", "Escalas en temperamento de 432 Hz."],
+      ["Tocar sequência", "Reproducir secuencia"],
+      ["Parar sequência", "Detener secuencia"],
+      ["Códice Belentani // Portfólio // Obras · 432 Hz", "Códice Belentani // Portafolio // Obras · 432 Hz"],
+      ["Portfólio", "Portafolio"],
+      ["A minha essência compilada: cada painel abaixo é", "Mi esencia compilada: cada panel de abajo está"],
+      ["gerado em código", "generado en código"],
+      [", em tempo real, por este mesmo arquivo. Nada é imagem estática e nada vem de fora — só matemática, Canvas2D e o motor WebGL desta página.", ", en tiempo real, por este mismo archivo. Nada es imagen estática y nada viene de fuera — solo matemática, Canvas2D y el motor WebGL de esta página."],
+      ["Era 0 — O caos", "Era 0 — El caos"],
+      ["Dezenas de repos dispersos, versões que se traem. O universo começa como ruído.", "Decenas de repos dispersos, versiones que se traicionan. El universo empieza como ruido."],
+      ["Era I — Belentani (Nó 01)", "Era I — Belentani (Nodo 01)"],
+      ["O núcleo absorve o caos: monorepo, bíblia e fechamento de dívida técnica.", "El núcleo absorbe el caos: monorepo, biblia y cierre de deuda técnica."],
+      ["Era II — O Artista (Nó 02)", "Era II — El Artista (Nodo 02)"],
+      ["A mão humana: o código converte-se em obra — retratos, labirintos e o workflow criativo.", "La mano humana: el código se convierte en obra — retratos, laberintos y el workflow creativo."],
+      ["Era III — Neon Glassmorphism (Nó 03)", "Era III — Neon Glassmorphism (Nodo 03)"],
+      ["Vidro, néon e vazio como idioma comum.", "Vidrio, neón y vacío como idioma común."],
+      ["Era IV — The Judas Experience (Nó 04)", "Era IV — The Judas Experience (Nodo 04)"],
+      ["O sistema comete um erro com nome: Judas. Traição, frequência, hackeo e redenção.", "El sistema comete un error con nombre: Judas. Traición, frecuencia, hackeo y redención."],
+      ["Era V — Omega (Nó 05)", "Era V — Omega (Nodo 05)"],
+      ["O último nó olha o lore nos olhos e decide continuar. Nenhuma página é terminal.", "El último nodo mira el lore a los ojos y decide continuar. Ninguna página es terminal."],
+      ["GEMA I", "GEMA I"], ["GEMA II", "GEMA II"], ["GEMA III", "GEMA III"], ["GEMA IV", "GEMA IV"],
+      ["Traição", "Traición"], ["Frequência", "Frecuencia"], ["Revelação", "Revelación"], ["Redenção", "Redención"],
+      ["O algoritmo da dor. O boot corta-se; a chuva de código tinge-se de vermelho.", "El algoritmo del dolor. El boot se corta; la lluvia de código se tiñe de rojo."],
+      ["432 Hz como tribunal. A onda mede o que resta de verdade.", "432 Hz como tribunal. La onda mide lo que queda de verdad."],
+      ["O diamante refrata o que estava escondido. IOR 2.417.", "El diamante refracta lo que estaba escondido. IOR 2.417."],
+      ["A chave dourada abre o último nó. Nenhuma página é terminal.", "La llave dorada abre el último nodo. Ninguna página es terminal."]
     ];
-    var pfLang = "pt";
     var btnLang = document.createElement("button");
     btnLang.className = "pf-btn"; btnLang.type = "button"; btnLang.textContent = "PT / ES";
     btnLang.style.position = "absolute"; btnLang.style.top = "18px"; btnLang.style.right = "72px";
     panel.appendChild(btnLang);
+    function refreshDynamic() {
+      launch.textContent = pfLang === "pt" ? "Portfólio" : "Portafolio";
+      if (typeof btnVid !== "undefined" && btnVid) btnVid.textContent = vplaying ? "Pausar" : (pfLang === "pt" ? "Reproduzir" : "Reproducir");
+      seqLabel();
+      btnLang.textContent = pfLang === "pt" ? "PT / ES" : "ES / PT";
+    }
     function pfTranslate() {
       var from = pfLang === "pt" ? 1 : 0, to = pfLang === "pt" ? 0 : 1;
       var walker = document.createTreeWalker(panel, NodeFilter.SHOW_TEXT, null);
@@ -3678,7 +3796,7 @@
           if (txt === PFDICT[i][from]) { node.nodeValue = node.nodeValue.replace(PFDICT[i][from], PFDICT[i][to]); break; }
         }
       }
-      btnLang.textContent = pfLang === "pt" ? "PT / ES" : "ES / PT";
+      refreshDynamic();
     }
     btnLang.addEventListener("click", function () { pfLang = pfLang === "pt" ? "es" : "pt"; pfTranslate(); });
 
