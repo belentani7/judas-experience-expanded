@@ -3779,7 +3779,7 @@
     btnLang.style.position = "absolute"; btnLang.style.top = "18px"; btnLang.style.right = "72px";
     panel.appendChild(btnLang);
     function refreshDynamic() {
-      launch.textContent = pfLang === "pt" ? "Portfólio" : "Portafolio";
+      if (typeof launch !== "undefined" && launch) launch.textContent = pfLang === "pt" ? "Portfólio" : "Portafolio";
       if (typeof btnVid !== "undefined" && btnVid) btnVid.textContent = vplaying ? "Pausar" : (pfLang === "pt" ? "Reproduzir" : "Reproducir");
       seqLabel();
       btnLang.textContent = pfLang === "pt" ? "PT / ES" : "ES / PT";

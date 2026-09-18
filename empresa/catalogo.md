@@ -32,3 +32,8 @@ Total atual: **44+ painéis** procedurais + 4 relíquias 3D.
 
 - Booking / prensa: _(a preencher com o teu e-mail real)_
 - Frequência-raiz: **432 Hz**
+
+## Sessões (multitrack)
+
+8 pré-visualizações de 20 s (64 kbps) do master Judas em `assets/audio/sessions/*.mp3` (1,26 MB total). Os WAV completos ficam em `.cluster/judas-master` (fora da web, ~208 MB).
+

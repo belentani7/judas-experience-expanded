@@ -124,6 +124,8 @@
   <button class="app" data-app="audio"><i>♪</i>AUDIO</button>
   <button class="app" data-app="video"><i>▶</i>VÍDEO</button>
   <button class="app" data-app="radio"><i>≈</i>RADIO 432</button>
+  <button class="app" data-app="sessoes"><i>≡</i>SESSÕES</button>
+  <button class="app" data-app="experiencia"><i>✵</i>EXPERIÊNCIA</button>
   <button class="app" data-app="prensa"><i>✦</i>PRENSA</button>
   <button class="app" data-app="booking"><i>✉</i>BOOKING</button>
   <button class="app" data-app="caos"><i>&gt;_</i>CAOS</button>
@@ -261,6 +263,8 @@ var APPS={
   }},
   audio:{title:"AUDIO · drone 432 Hz", w:460,h:300, x:220,y:150, build:function(){ return audioPanel(); }},
   radio:{title:"RADIO 432 · ao vivo", w:520,h:320, x:260,y:120, build:function(){ return audioPanel(true); }},
+  sessoes:{title:"SESSÕES · multitrack", w:540,h:470, x:200,y:120, build:function(){ return sessionsPanel(); }},
+  experiencia:{title:"EXPERIÊNCIA · viagem 168 s", w:480,h:220, x:250,y:160, build:function(){ return expPanel(); }},
   video:{title:"VÍDEO · procedural", w:560,h:360, x:120,y:200, build:function(){ return videoPanel(); }},
   prensa:{title:"PRENSA · press-kit", w:520,h:420, x:180,y:90, build:function(){
     var d=document.createElement("div");
@@ -373,6 +377,28 @@ function videoPanel(){
     x.fillText("432 HZ · "+String(Math.floor(t*24)%1000).padStart(3,"0"),10*d,16*d);
   })();
   return wrap;
+}
+function sessionsPanel(){
+  var d=document.createElement("div");
+  d.innerHTML='<h2>Sessões — multitrack</h2>';
+  var p=document.createElement("p"); p.textContent="Pré-visualizações de 20 s (64 kbps) do master Judas. Os WAV completos vivem no projeto, fora da web.";
+  d.appendChild(p);
+  var names=[["instrumental","Instrumental"],["coros","Coros"],["coro_hi","Coro (alto)"],["coro_lo","Coro (baixo)"],["violin","Violino"],["violin_m","Violino (melodia)"],["mixA","Mix A"],["mixB","Mix B"]];
+  names.forEach(function(n){
+    var row=document.createElement("div"); row.className="row";
+    var lab=document.createElement("span"); lab.style.cssText="font-family:"+MONO+";font-size:10px;letter-spacing:.16em;min-width:120px;color:#9c96ab"; lab.textContent=n[1];
+    var au=document.createElement("audio"); au.controls=true; au.preload="none"; au.src="assets/audio/sessions/"+n[0]+".mp3"; au.style.cssText="flex:1;min-width:190px";
+    row.appendChild(lab); row.appendChild(au); d.appendChild(row);
+  });
+  return d;
+}
+function expPanel(){
+  var d=document.createElement("div");
+  d.innerHTML='<h2>A viagem espacial — 168 s</h2><p>A jornada completa (galáxia → planeta → diamante → chave → máquina → relíquias) corre no motor 3D da obra principal.</p>';
+  var row=document.createElement("div"); row.className="row";
+  var a=document.createElement("a"); a.className="btn"; a.href="index.html"; a.textContent="Abrir a obra (3D) →";
+  var n=document.createElement("span"); n.style.cssText="font-family:"+MONO+";font-size:10px;color:#6c6679"; n.textContent="Precisa WebGL.";
+  row.appendChild(a); row.appendChild(n); d.appendChild(row); return d;
 }
 function termPanel(){
   var d=document.createElement("div"); d.className="term";
