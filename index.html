@@ -1398,9 +1398,9 @@
     try {
       const clock = new THREE.Clock();
       const scene = new THREE.Scene();
-      scene.fog = new THREE.FogExp2(0x030105, 0.014);
+      scene.fog = new THREE.FogExp2(0x030105, 0.005);
 
-      const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, 0.05, 120);
+      const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, 0.05, 400);
       camera.position.set(0, 0.25, isMobile ? 12.8 : 10.8);
 
       const renderer = new THREE.WebGLRenderer({
@@ -1455,9 +1455,16 @@
           tDiffuse: { value: null },
           uTime: { value: 0 },
           uResolution: { value: new THREE.Vector2(innerWidth * currentDpr, innerHeight * currentDpr) },
-          uAberration: { value: isMobile ? 0.0011 : 0.0018 },
-          uGrain: { value: 0.035 },
-          uVignette: { value: 0.72 }
+          uAberration: { value: isMobile ? 0.0011 : 0.0022 },
+          uGrain: { value: 0.032 },
+          uVignette: { value: 0.72 },
+          uGodRayCenter: { value: new THREE.Vector2(0.5, 0.5) },
+          uGodRayIntensity: { value: 0.0 },
+          uHeatCenter: { value: new THREE.Vector2(0.5, 0.5) },
+          uHeatIntensity: { value: 0.0 },
+          uColorGrade: { value: new THREE.Vector3(1.0, 0.95, 0.92) },
+          uMotionBlur: { value: 0.0 },
+          uMotionDir: { value: new THREE.Vector2(0, 0) }
         },
         vertexShader: `
           varying vec2 vUv;
@@ -1473,6 +1480,13 @@
           uniform float uAberration;
           uniform float uGrain;
           uniform float uVignette;
+          uniform vec2 uGodRayCenter;
+          uniform float uGodRayIntensity;
+          uniform vec2 uHeatCenter;
+          uniform float uHeatIntensity;
+          uniform vec3 uColorGrade;
+          uniform float uMotionBlur;
+          uniform vec2 uMotionDir;
           varying vec2 vUv;
 
           float hash21(vec2 p) {
@@ -1485,23 +1499,96 @@
             vec2 uv = vUv;
             vec2 centered = uv - 0.5;
             float radial = dot(centered, centered);
-            vec2 shift = centered * radial * uAberration * 10.0;
 
-            float r = texture2D(tDiffuse, uv + shift).r;
+            // --- HEAT DISTORTION (gravitational lensing near objects) ---
+            vec2 toHeat = uv - uHeatCenter;
+            float heatDist = length(toHeat);
+            float heatWarp = uHeatIntensity * exp(-heatDist * 8.0) *
+              sin(heatDist * 45.0 - uTime * 3.5) * 0.004;
+            uv += normalize(toHeat + 0.001) * heatWarp;
+
+            // --- CHROMATIC ABERRATION (enhanced with radial + axial) ---
+            vec2 shift = centered * radial * uAberration * 12.0;
+            vec2 axial = vec2(sin(uTime * 0.7) * 0.0003, cos(uTime * 0.5) * 0.0002);
+            float r = texture2D(tDiffuse, uv + shift + axial).r;
             float g = texture2D(tDiffuse, uv).g;
-            float b = texture2D(tDiffuse, uv - shift).b;
+            float b = texture2D(tDiffuse, uv - shift - axial).b;
             vec3 color = vec3(r, g, b);
 
+            // --- GOD RAYS (radial light shaft from bright center) ---
+            if (uGodRayIntensity > 0.001) {
+              vec2 rayDir = uv - uGodRayCenter;
+              vec3 rays = vec3(0.0);
+              float decay = 1.0;
+              vec2 sampleUv = uv;
+              for (int i = 0; i < 24; i++) {
+                sampleUv -= rayDir * 0.018;
+                vec3 s = texture2D(tDiffuse, sampleUv).rgb;
+                float lum = dot(s, vec3(0.2126, 0.7152, 0.0722));
+                rays += s * max(0.0, lum - 0.45) * decay;
+                decay *= 0.955;
+              }
+              color += rays * uGodRayIntensity * 0.035;
+            }
+
+            // --- ANAMORPHIC STREAK (horizontal lens flare) ---
+            float streak = 0.0;
+            for (int i = -6; i <= 6; i++) {
+              vec2 su = vec2(uv.x + float(i) * 0.008, uv.y);
+              float lum = dot(texture2D(tDiffuse, su).rgb, vec3(0.2126, 0.7152, 0.0722));
+              streak += max(0.0, lum - 0.7) * exp(-abs(float(i)) * 0.4);
+            }
+            color += vec3(0.85, 0.35, 0.45) * streak * 0.06;
+
+            // --- FILM GRAIN (temporal + spatial) ---
             float grain = hash21(uv * uResolution + fract(uTime) * 213.4) - 0.5;
-            color += grain * uGrain;
+            float grain2 = hash21(uv * uResolution * 1.7 + fract(uTime * 1.3) * 71.2) - 0.5;
+            color += (grain * 0.7 + grain2 * 0.3) * uGrain;
 
-            float vignette = smoothstep(0.88, 0.16, radial * uVignette);
-            color *= mix(0.64, 1.0, vignette);
+            // --- VIGNETTE (dual-layer: optical + cinematic) ---
+            float vigOpt = smoothstep(0.88, 0.16, radial * uVignette);
+            float vigCine = 1.0 - pow(radial * 1.2, 1.8) * 0.35;
+            color *= mix(0.58, 1.0, vigOpt) * vigCine;
 
+            // --- SCANLINES ---
             float scan = sin((uv.y * uResolution.y) * 1.55) * 0.003;
             color -= scan;
 
-            gl_FragColor = vec4(color, 1.0);
+            // --- MOTION BLUR (during journey) ---
+            if (uMotionBlur > 0.001) {
+              vec3 mblur = vec3(0.0);
+              for (int mi = 1; mi <= 8; mi++) {
+                mblur += texture2D(tDiffuse, uv - uMotionDir * float(mi) * 0.003 * uMotionBlur).rgb;
+              }
+              color = mix(color, mblur / 8.0, uMotionBlur * 0.5);
+            }
+
+            // --- SOFT BOKEH EDGES (cinematic DoF) ---
+            float bokeh = smoothstep(0.15, 0.42, radial);
+            if (bokeh > 0.01) {
+              vec3 blur = vec3(0.0);
+              float bw = bokeh * 0.0025;
+              for (int bi = 0; bi < 6; bi++) {
+                float a = float(bi) * 1.0472;
+                blur += texture2D(tDiffuse, uv + vec2(cos(a), sin(a)) * bw).rgb;
+              }
+              blur /= 6.0;
+              color = mix(color, blur, bokeh * 0.35);
+            }
+
+            // --- LENS DIRT (subtle bright spots at edges) ---
+            float dirt1 = pow(max(0.0, sin(centered.x * 12.0 + centered.y * 8.0)), 16.0);
+            float dirt2 = pow(max(0.0, sin(centered.x * 7.0 - centered.y * 11.0 + 1.0)), 20.0);
+            float lum2 = dot(color, vec3(0.2126, 0.7152, 0.0722));
+            color += vec3(0.9, 0.5, 0.35) * (dirt1 + dirt2) * max(0.0, lum2 - 0.5) * 0.08;
+
+            // --- COLOR GRADING (dynamic per-zone) ---
+            color *= uColorGrade;
+            float lum = dot(color, vec3(0.2126, 0.7152, 0.0722));
+            color = mix(vec3(lum), color, 1.12);
+            color = pow(color, vec3(0.97));
+
+            gl_FragColor = vec4(max(color, 0.0), 1.0);
           }
         `
       };
@@ -1511,6 +1598,60 @@
       composer.addPass(new OutputPass());
 
       // ---------- UTILIDADES DE SHADER ----------
+      // Simplex Noise 3D (Ashima/webgl-noise, public domain)
+      const simplexNoiseGLSL = `
+        vec3 mod289(vec3 x){return x-floor(x*(1./289.))*289.;}
+        vec4 mod289(vec4 x){return x-floor(x*(1./289.))*289.;}
+        vec4 permute(vec4 x){return mod289(((x*34.)+1.)*x);}
+        vec4 taylorInvSqrt(vec4 r){return 1.79284-0.85373*r;}
+        float snoise(vec3 v){
+          const vec2 C=vec2(1./6.,1./3.);
+          const vec4 D=vec4(0.,.5,1.,2.);
+          vec3 i=floor(v+dot(v,C.yyy));
+          vec3 x0=v-i+dot(i,C.xxx);
+          vec3 g=step(x0.yzx,x0.xyz);
+          vec3 l=1.-g;
+          vec3 i1=min(g,l.zxy);
+          vec3 i2=max(g,l.zxy);
+          vec3 x1=x0-i1+C.xxx;
+          vec3 x2=x0-i2+C.yyy;
+          vec3 x3=x0-D.yyy;
+          i=mod289(i);
+          vec4 p=permute(permute(permute(
+            i.z+vec4(0.,i1.z,i2.z,1.))
+            +i.y+vec4(0.,i1.y,i2.y,1.))
+            +i.x+vec4(0.,i1.x,i2.x,1.));
+          float n_=0.142857;
+          vec3 ns=n_*D.wyz-D.xzx;
+          vec4 j=p-49.*floor(p*ns.z*ns.z);
+          vec4 x_=floor(j*ns.z);
+          vec4 y_=floor(j-7.*x_);
+          vec4 x=x_*ns.x+ns.yyyy;
+          vec4 y=y_*ns.x+ns.yyyy;
+          vec4 h=1.-abs(x)-abs(y);
+          vec4 b0=vec4(x.xy,y.xy);
+          vec4 b1=vec4(x.zw,y.zw);
+          vec4 s0=floor(b0)*2.+1.;
+          vec4 s1=floor(b1)*2.+1.;
+          vec4 sh=-step(h,vec4(0.));
+          vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;
+          vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+          vec3 p0=vec3(a0.xy,h.x);
+          vec3 p1=vec3(a0.zw,h.y);
+          vec3 p2=vec3(a1.xy,h.z);
+          vec3 p3=vec3(a1.zw,h.w);
+          vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+          p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;
+          vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.);
+          m=m*m;
+          return 42.*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+        }
+        float sfbm(vec3 p){
+          float f=0.,a=.5;
+          for(int i=0;i<5;i++){f+=a*snoise(p);p*=2.01;a*=.49;}
+          return f;
+        }
+      `;
       const valueNoiseGLSL = `
         float hash31(vec3 p) {
           p = fract(p * 0.1031);
@@ -1580,22 +1721,25 @@
             uniform vec3 uRed;
             uniform vec3 uCyan;
             varying vec3 vDirection;
-            ${valueNoiseGLSL}
+            ${simplexNoiseGLSL}
 
             void main() {
               vec3 d = normalize(vDirection);
-              float n1 = fbm(d * 4.1 + vec3(uTime * 0.018, -uTime * 0.011, 0.0));
-              float n2 = fbm(d * 9.0 - vec3(0.0, uTime * 0.013, uTime * 0.008));
-              float bands = pow(max(0.0, n1 * 0.78 + n2 * 0.34 - 0.48), 2.25);
+              float n1 = sfbm(d * 4.1 + vec3(uTime * 0.018, -uTime * 0.011, 0.0));
+              float n2 = sfbm(d * 9.0 - vec3(0.0, uTime * 0.013, uTime * 0.008));
+              float n3 = snoise(d * 16.0 + vec3(uTime * 0.007));
+              float bands = pow(max(0.0, n1 * 0.78 + n2 * 0.34 - 0.44), 2.1);
 
               float redMask = smoothstep(0.22, 0.88, d.y * 0.35 + n1);
               float cyanMask = smoothstep(0.63, 0.92, n2 + d.x * 0.16);
+              float dustMask = pow(max(0.0, n3 * 0.5 + 0.5), 3.0);
 
               vec3 base = vec3(0.0015, 0.0007, 0.003);
               vec3 color = base;
               color += uRed * bands * (0.12 + redMask * 0.56);
               color += uCyan * pow(cyanMask, 5.0) * 0.055;
               color += vec3(0.11, 0.015, 0.08) * pow(n1, 5.0) * 0.16;
+              color += vec3(0.04, 0.005, 0.02) * dustMask * 0.3;
 
               float horizon = pow(1.0 - abs(d.y), 7.0);
               color += uRed * horizon * 0.008;
@@ -1606,6 +1750,57 @@
         })
       );
       scene.add(nebula);
+
+      // ---------- CAMPO MAGNÉTICO VISUAL (linhas de força) ----------
+      (function createMagneticField() {
+        var lineCount = isMobile ? 8 : 16;
+        var pointsPerLine = 64;
+        var positions = [];
+        var indices = [];
+        for (var l = 0; l < lineCount; l++) {
+          var phi = (l / lineCount) * Math.PI * 2;
+          var tilt = (l % 3 === 0) ? 0.3 : (l % 3 === 1) ? -0.2 : 0.0;
+          var base = positions.length / 3;
+          for (var p = 0; p < pointsPerLine; p++) {
+            var t = (p / (pointsPerLine - 1)) * Math.PI;
+            var r = 3 + Math.sin(t) * 12;
+            var y = Math.cos(t) * 8 + tilt * Math.sin(t * 2) * 3;
+            var x = Math.cos(phi + t * 0.3) * r;
+            var z = Math.sin(phi + t * 0.3) * r;
+            positions.push(x, y, z);
+            if (p < pointsPerLine - 1) indices.push(base + p, base + p + 1);
+          }
+        }
+        var geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+        geo.setIndex(indices);
+        var mat = new THREE.ShaderMaterial({
+          transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+          uniforms: { uTime: { value: 0 } },
+          vertexShader: `
+            uniform float uTime;
+            varying float vFlow; varying float vDist;
+            void main() {
+              vFlow = position.y * 0.08 + position.x * 0.03;
+              vDist = length(position.xz) * 0.05;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform float uTime;
+            varying float vFlow; varying float vDist;
+            void main() {
+              float pulse = pow(fract(vFlow - uTime * 0.2), 16.0) * 0.5;
+              float fade = exp(-vDist * 1.5);
+              vec3 col = vec3(0.6, 0.05, 0.12) * pulse * fade;
+              gl_FragColor = vec4(col, pulse * fade * 0.08);
+            }
+          `
+        });
+        var field = new THREE.LineSegments(geo, mat);
+        field.userData.magFieldMat = mat;
+        scene.add(field);
+      })();
 
       // ---------- ACCRETION DISK (fundo distante) ----------
       const accretionGeom = new THREE.PlaneGeometry(12, 12);
@@ -1788,6 +1983,58 @@
       rimLight.position.set(-1, 5, 6);
       scene.add(rimLight);
 
+      // ---------- POLVO CÓSMICO FLOTANTE ----------
+      (function createCosmicDust() {
+        var N = isMobile ? 120 : 280;
+        var geo = new THREE.BufferGeometry();
+        var pos = new Float32Array(N * 3);
+        var vel = new Float32Array(N * 3);
+        var siz = new Float32Array(N);
+        for (var i = 0; i < N; i++) {
+          pos[i*3]   = (Math.random() - 0.5) * 20;
+          pos[i*3+1] = (Math.random() - 0.5) * 12;
+          pos[i*3+2] = (Math.random() - 0.5) * 20;
+          vel[i*3]   = (Math.random() - 0.5) * 0.003;
+          vel[i*3+1] = (Math.random() - 0.5) * 0.002;
+          vel[i*3+2] = (Math.random() - 0.5) * 0.003;
+          siz[i] = 0.3 + Math.random() * 1.5;
+        }
+        geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute("aVel", new THREE.BufferAttribute(vel, 3));
+        geo.setAttribute("aSize", new THREE.BufferAttribute(siz, 1));
+        var mat = new THREE.ShaderMaterial({
+          transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+          uniforms: { uTime: { value: 0 }, uCamPos: { value: new THREE.Vector3() } },
+          vertexShader: `
+            attribute vec3 aVel; attribute float aSize;
+            uniform float uTime; uniform vec3 uCamPos;
+            varying float vAlpha;
+            void main() {
+              vec3 p = position + aVel * uTime * 60.0;
+              p = mod(p - uCamPos + 10.0, 20.0) - 10.0 + uCamPos;
+              vec4 mv = modelViewMatrix * vec4(p, 1.0);
+              float dist = -mv.z;
+              vAlpha = smoothstep(12.0, 2.0, dist) * smoothstep(0.3, 1.5, dist);
+              gl_PointSize = aSize * (120.0 / max(1.0, dist));
+              gl_Position = projectionMatrix * mv;
+            }
+          `,
+          fragmentShader: `
+            varying float vAlpha;
+            void main() {
+              float d = length(gl_PointCoord - 0.5);
+              float a = exp(-d * 7.0) * vAlpha * 0.25;
+              if (a < 0.005) discard;
+              gl_FragColor = vec4(0.75, 0.55, 0.65, a);
+            }
+          `
+        });
+        var dust = new THREE.Points(geo, mat);
+        dust.frustumCulled = false;
+        dust.userData.dustMat = mat;
+        scene.add(dust);
+      })();
+
       // ---------- PLANETA VIVO ----------
       const planetUniforms = {
         uTime: { value: 0 },
@@ -1918,6 +2165,61 @@
       );
       atmosphere.userData.rootName = "planet";
       scene.add(atmosphere);
+
+      // ---------- AURORA ORBITAL (partículas helicoidales) ----------
+      (function createAuroraParticles() {
+        var N = isMobile ? 200 : 500;
+        var geo = new THREE.BufferGeometry();
+        var pos = new Float32Array(N * 3);
+        var ph = new Float32Array(N);
+        var spd = new Float32Array(N);
+        for (var i = 0; i < N; i++) {
+          var angle = Math.random() * Math.PI * 2;
+          var r = 1.9 + Math.random() * 0.8;
+          var y = (Math.random() - 0.5) * 0.6;
+          pos[i*3] = Math.cos(angle) * r;
+          pos[i*3+1] = y;
+          pos[i*3+2] = Math.sin(angle) * r;
+          ph[i] = angle;
+          spd[i] = 0.3 + Math.random() * 0.7;
+        }
+        geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute("aPhase", new THREE.BufferAttribute(ph, 1));
+        geo.setAttribute("aSpeed", new THREE.BufferAttribute(spd, 1));
+        var mat = new THREE.ShaderMaterial({
+          transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+          uniforms: { uTime: { value: 0 } },
+          vertexShader: `
+            attribute float aPhase; attribute float aSpeed;
+            uniform float uTime;
+            varying float vAlpha; varying vec3 vCol;
+            void main() {
+              float t = uTime * aSpeed * 0.4 + aPhase;
+              float r = 1.9 + sin(t * 2.0) * 0.3;
+              float y = position.y + sin(t * 3.0 + aPhase * 5.0) * 0.4;
+              vec3 p = vec3(cos(t) * r, y, sin(t) * r);
+              vec4 mv = modelViewMatrix * vec4(p, 1.0);
+              float polar = abs(y) / 1.0;
+              vCol = mix(vec3(1.0, 0.04, 0.12), vec3(0.2, 0.9, 1.0), polar);
+              vAlpha = (0.4 + 0.6 * sin(t * 5.0 + aPhase)) * smoothstep(8.0, 2.0, -mv.z);
+              gl_PointSize = (1.5 + polar * 2.0) * (100.0 / max(1.0, -mv.z));
+              gl_Position = projectionMatrix * mv;
+            }
+          `,
+          fragmentShader: `
+            varying float vAlpha; varying vec3 vCol;
+            void main() {
+              float d = length(gl_PointCoord - 0.5);
+              float a = exp(-d * 6.0) * vAlpha * 0.4;
+              if (a < 0.01) discard;
+              gl_FragColor = vec4(vCol, a);
+            }
+          `
+        });
+        var pts = new THREE.Points(geo, mat);
+        pts.userData.auroraMat = mat;
+        scene.add(pts);
+      })();
 
       // ---------- PLANETAS DISTANTES ----------
       function createDistantPlanet(radius, detail, colorA, colorB, colorC, pos, rotSpeed) {
@@ -2614,6 +2916,99 @@
         connections.push({ line, material });
       });
 
+      // ---------- RED DE ENERGÍA PROFUNDA (conecta reliquias distantes) ----------
+      (function createDeepEnergyWeb() {
+        var nodes = [
+          [0,0,0], [-18,3,-28], [22,-2,-35], [-12,-5,-42],
+          [14,5,-22], [-16,-3,-30], [20,2,-38], [-24,6,-45], [18,-4,-50],
+          [-28,2,-55], [25,-6,-58], [-8,8,-62], [30,0,-68]
+        ];
+        var pairs = [];
+        for (var i = 0; i < nodes.length; i++) {
+          for (var j = i + 1; j < nodes.length; j++) {
+            var dx = nodes[i][0]-nodes[j][0], dy = nodes[i][1]-nodes[j][1], dz = nodes[i][2]-nodes[j][2];
+            if (Math.sqrt(dx*dx+dy*dy+dz*dz) < 35) pairs.push([i, j]);
+          }
+        }
+        var verts = []; var indices = [];
+        pairs.forEach(function(pr) {
+          var a = nodes[pr[0]], b = nodes[pr[1]];
+          var base = verts.length / 3;
+          for (var k = 0; k <= 16; k++) {
+            var t = k / 16;
+            verts.push(
+              a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t + Math.sin(t*Math.PI)*2, a[2]+(b[2]-a[2])*t
+            );
+            if (k < 16) { indices.push(base+k, base+k+1); }
+          }
+        });
+        var geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+        geo.setIndex(indices);
+        var mat = new THREE.ShaderMaterial({
+          transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+          uniforms: { uTime: { value: 0 } },
+          vertexShader: `
+            uniform float uTime;
+            varying float vFlow;
+            void main() {
+              vFlow = position.x * 0.04 + position.z * 0.03 + position.y * 0.05;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform float uTime;
+            varying float vFlow;
+            void main() {
+              float pulse = pow(fract(vFlow - uTime * 0.3), 12.0) * 0.7;
+              float flicker = 0.5 + 0.5 * sin(uTime * 2.0 + vFlow * 15.0);
+              vec3 col = vec3(0.9, 0.12, 0.2) * pulse * flicker + vec3(0.1, 0.03, 0.08) * 0.05;
+              gl_FragColor = vec4(col, pulse * flicker * 0.18);
+            }
+          `
+        });
+        var web = new THREE.LineSegments(geo, mat);
+        web.userData.deepWebMat = mat;
+        scene.add(web);
+      })();
+
+      // ---------- PULSO ELECTROMAGNÉTICO (onda esférica periódica) ----------
+      (function createEMPulse() {
+        var geo = new THREE.SphereGeometry(1, 64, 32);
+        var mat = new THREE.ShaderMaterial({
+          transparent: true, depthWrite: false, side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+          uniforms: { uTime: { value: 0 } },
+          vertexShader: `
+            uniform float uTime;
+            varying vec3 vPos;
+            void main() {
+              float wave = mod(uTime * 0.15, 1.0);
+              float radius = wave * 80.0;
+              vec3 p = position * radius;
+              vPos = p;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform float uTime;
+            varying vec3 vPos;
+            void main() {
+              float wave = mod(uTime * 0.15, 1.0);
+              float radius = wave * 80.0;
+              float edge = 1.0 - wave;
+              float d = length(vPos) / max(radius, 0.1);
+              float ring = exp(-pow((d - 0.98) * 50.0, 2.0)) * edge;
+              vec3 col = mix(vec3(1.0, 0.05, 0.15), vec3(0.3, 0.0, 0.5), wave);
+              gl_FragColor = vec4(col * ring * 2.0, ring * 0.12);
+            }
+          `
+        });
+        var pulse = new THREE.Mesh(geo, mat);
+        pulse.userData.emPulseMat = mat;
+        scene.add(pulse);
+      })();
+
       // ---------- INTERAÇÃO / CÂMARA ----------
       const focusPresets = {
         all: {
@@ -3084,6 +3479,70 @@
 
       const journeyOverlay = createJourneyOverlay();
 
+      // ---------- CAMERA TRAIL (chispas durante el journey) ----------
+      var trailMax = isMobile ? 200 : 500;
+      var trailGeo = new THREE.BufferGeometry();
+      var trailPos = new Float32Array(trailMax * 3);
+      var trailLife = new Float32Array(trailMax);
+      var trailSize = new Float32Array(trailMax);
+      for (var ti = 0; ti < trailMax; ti++) {
+        trailPos[ti*3] = 9999; trailPos[ti*3+1] = 9999; trailPos[ti*3+2] = 9999;
+        trailLife[ti] = 0; trailSize[ti] = 0.5 + Math.random() * 1.5;
+      }
+      trailGeo.setAttribute("position", new THREE.BufferAttribute(trailPos, 3));
+      trailGeo.setAttribute("aLife", new THREE.BufferAttribute(trailLife, 1));
+      trailGeo.setAttribute("aSize", new THREE.BufferAttribute(trailSize, 1));
+      var trailMat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        uniforms: {},
+        vertexShader: `
+          attribute float aLife; attribute float aSize;
+          varying float vLife;
+          void main() {
+            vLife = aLife;
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = aSize * aLife * (80.0 / max(1.0, -mv.z));
+            gl_Position = projectionMatrix * mv;
+          }
+        `,
+        fragmentShader: `
+          varying float vLife;
+          void main() {
+            float d = length(gl_PointCoord - 0.5);
+            float a = exp(-d * 5.0) * vLife * 0.6;
+            if (a < 0.01) discard;
+            vec3 col = mix(vec3(1.0, 0.3, 0.15), vec3(0.3, 0.1, 0.4), 1.0 - vLife);
+            gl_FragColor = vec4(col, a);
+          }
+        `
+      });
+      var trailPoints = new THREE.Points(trailGeo, trailMat);
+      trailPoints.frustumCulled = false;
+      scene.add(trailPoints);
+      var trailHead = 0;
+      var lastTrailPos = new THREE.Vector3(9999, 9999, 9999);
+
+      function emitTrailParticle(pos) {
+        if (pos.distanceTo(lastTrailPos) < 0.3) return;
+        lastTrailPos.copy(pos);
+        var p = trailGeo.attributes.position.array;
+        p[trailHead*3]   = pos.x + (Math.random()-0.5)*0.4;
+        p[trailHead*3+1] = pos.y + (Math.random()-0.5)*0.3;
+        p[trailHead*3+2] = pos.z + (Math.random()-0.5)*0.4;
+        trailGeo.attributes.aLife.array[trailHead] = 1.0;
+        trailHead = (trailHead + 1) % trailMax;
+        trailGeo.attributes.position.needsUpdate = true;
+        trailGeo.attributes.aLife.needsUpdate = true;
+      }
+
+      function updateTrail() {
+        var life = trailGeo.attributes.aLife.array;
+        for (var i = 0; i < trailMax; i++) {
+          if (life[i] > 0) { life[i] = Math.max(0, life[i] - 0.008); }
+        }
+        trailGeo.attributes.aLife.needsUpdate = true;
+      }
+
       function startJourney() {
         journeyActive = true;
         journeyStart = clock.getElapsedTime();
@@ -3143,6 +3602,14 @@
         });
       });
 
+      // ---------- CACHE SCENE REFS (evita 6x find() por frame) ----------
+      var _deepField = scene.children.find(function(c){ return c.userData && c.userData.deepFieldMat; });
+      var _dustObj = scene.children.find(function(c){ return c.userData && c.userData.dustMat; });
+      var _auroraObj = scene.children.find(function(c){ return c.userData && c.userData.auroraMat; });
+      var _magField = scene.children.find(function(c){ return c.userData && c.userData.magFieldMat; });
+      var _deepWeb = scene.children.find(function(c){ return c.userData && c.userData.deepWebMat; });
+      var _emPulse = scene.children.find(function(c){ return c.userData && c.userData.emPulseMat; });
+
       // ---------- CICLO DE VIDA ----------
       let pageVisible = true;
       document.addEventListener("visibilitychange", () => {
@@ -3160,7 +3627,11 @@
         const time = clock.getElapsedTime();
         const motion = reducedMotion ? 0.18 : 1.0;
 
-        if (journeyActive) updateJourney(time);
+        if (journeyActive) {
+          updateJourney(time);
+          emitTrailParticle(camera.position);
+        }
+        updateTrail();
 
         mouseSmooth.lerp(mouse, 0.055);
         currentTarget.lerp(desiredTarget, journeyActive ? 0.08 : 0.052);
@@ -3183,8 +3654,7 @@
         accretionDisk.rotation.z += 0.0003 * motion;
         accretionDisk2.rotation.z -= 0.0002 * motion;
         stars.material.uniforms.uTime.value = time;
-        var dfPts = scene.children.find(function(c){ return c.userData && c.userData.deepFieldMat; });
-        if (dfPts) dfPts.userData.deepFieldMat.uniforms.uTime.value = time;
+        if (_deepField) _deepField.userData.deepFieldMat.uniforms.uTime.value = time;
         planetUniforms.uTime.value = time;
         atmosphere.material.uniforms.uTime.value = time;
         atmosphere.scale.setScalar(1 + Math.sin(time * 1.35) * 0.006 * motion);
@@ -3244,6 +3714,11 @@
           material.uniforms.uTime.value = time;
         });
 
+        if (_magField) _magField.userData.magFieldMat.uniforms.uTime.value = time;
+        if (_auroraObj) _auroraObj.userData.auroraMat.uniforms.uTime.value = time;
+        if (_deepWeb) _deepWeb.userData.deepWebMat.uniforms.uTime.value = time;
+        if (_emPulse) _emPulse.userData.emPulseMat.uniforms.uTime.value = time;
+
         const pulse = 0.9 + Math.sin(time * 1.48) * 0.11;
         redLight.intensity = 14 + pulse * 4;
         planetGlow.material.opacity = 0.16 + pulse * 0.055;
@@ -3251,6 +3726,51 @@
         diamondGlow.material.opacity = 0.14 + Math.sin(time * 1.65) * 0.035;
 
         cinematicPass.uniforms.uTime.value = time;
+
+        // --- MOTION BLUR (journey velocity) ---
+        if (journeyActive) {
+          var vel = tempCameraPosition.clone().sub(camera.position);
+          var speed = vel.length();
+          var screenVel = vel.project(camera);
+          cinematicPass.uniforms.uMotionBlur.value = Math.min(1, speed * 2.5);
+          cinematicPass.uniforms.uMotionDir.value.set(screenVel.x * 0.5, screenVel.y * 0.5);
+        } else {
+          cinematicPass.uniforms.uMotionBlur.value *= 0.9;
+        }
+
+        // --- GOD RAYS: project planet center to screen ---
+        var planetScreen = new THREE.Vector3(0, 0, 0).project(camera);
+        var godRayCx = (planetScreen.x + 1) * 0.5;
+        var godRayCy = (planetScreen.y + 1) * 0.5;
+        var camDist2 = camera.position.length();
+        var godRayStr = Math.max(0, 1 - camDist2 / 40) * 1.2;
+        cinematicPass.uniforms.uGodRayCenter.value.set(godRayCx, godRayCy);
+        cinematicPass.uniforms.uGodRayIntensity.value = godRayStr;
+
+        // --- HEAT DISTORTION: lensing near planet ---
+        cinematicPass.uniforms.uHeatCenter.value.set(godRayCx, godRayCy);
+        cinematicPass.uniforms.uHeatIntensity.value = Math.max(0, 1 - camDist2 / 20) * 0.8;
+
+        // --- COLOR GRADING: zone-based ---
+        var zoneZ = camera.position.z;
+        if (zoneZ > 100) {
+          cinematicPass.uniforms.uColorGrade.value.set(0.85, 0.75, 0.95);
+        } else if (zoneZ > 30) {
+          var f = (zoneZ - 30) / 70;
+          cinematicPass.uniforms.uColorGrade.value.set(0.92 + f * 0.08, 0.85 + f * 0.05, 0.88 + f * 0.12);
+        } else {
+          cinematicPass.uniforms.uColorGrade.value.set(1.0, 0.95, 0.90);
+        }
+
+        // --- DYNAMIC FOG (dense close, thin far) ---
+        var fogDist = camera.position.length();
+        scene.fog.density = fogDist > 100 ? 0.001 : 0.003 + (1 - fogDist / 100) * 0.012;
+
+        // --- COSMIC DUST update ---
+        if (_dustObj) {
+          _dustObj.userData.dustMat.uniforms.uTime.value = time;
+          _dustObj.userData.dustMat.uniforms.uCamPos.value.copy(camera.position);
+        }
 
         // --- TITLE COLOR ADAPTATION ---
         var camLen = camera.position.length();
